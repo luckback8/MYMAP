@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>나만의 서울 여행 지도</title>
+  <style>
+    :root { --paper: #faf8f2; --ink: #202d33; --red: #ac392b; --muted: #59635f; --line: #d6d5ca; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 16px/1.6 "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; word-break: keep-all; }
+    .wrap { width: min(1120px, 90%); margin-inline: auto; }
+    header { border-bottom: 1px solid var(--line); }
+    header .wrap, .brand, nav { display: flex; align-items: center; }
+    header .wrap { min-height: 72px; justify-content: space-between; gap: 16px; }
+    .brand { gap: 10px; font-weight: 800; }
+    .compass { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--red); border-radius: 50%; }
+    .compass::after { content: ""; width: 9px; height: 21px; background: linear-gradient(var(--red) 50%, #e5ac94 50%); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); transform: rotate(32deg); }
+    nav { gap: 24px; }
+    nav a { color: var(--muted); font-size: .88rem; text-decoration: none; }
+    nav a:hover { color: var(--red); text-decoration: underline; }
+    :focus-visible { outline: 3px solid var(--red); outline-offset: 4px; }
+    h1 { margin: clamp(36px, 6vw, 76px) 0 40px; font-size: clamp(2.4rem, 5.5vw, 4.6rem); line-height: 1.16; letter-spacing: -.067em; }
+    h1 em { color: var(--red); font-style: normal; }
+    main { padding-bottom: 50px; }
+    .layout { display: grid; grid-template-columns: minmax(255px, 1fr) minmax(0, 1.8fr); gap: 36px; }
+    h2 { margin: 0; padding: 10px 0 14px; border-top: 2px solid var(--ink); font-size: 1.15rem; }
+    .count { margin-left: 7px; color: var(--muted); font-size: .85rem; font-weight: 500; }
+    .places { display: grid; gap: 10px; }
+    .place-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: #fffdf8; }
+    .place-row:has(.place[aria-pressed="true"]) { border-color: var(--red); background: #fbefe6; }
+    .place { position: relative; padding: 0; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .card { display: block; padding: 14px 8px 15px 16px; }
+    .place:hover .name { text-decoration: underline; }
+    .category, .name, .desc { display: block; }
+    .category { color: var(--muted); font-size: .78rem; }
+    .name { margin: 2px 0; font-size: 1.25rem; letter-spacing: -.04em; }
+    .desc { color: #465154; font-size: .9rem; }
+    .add-stop, .stop-actions button { padding: 5px 9px; min-height: 32px; border: 1px solid var(--line); border-radius: 6px; background: #fffdf8; font: inherit; font-size: .82rem; color: var(--ink); cursor: pointer; }
+    .add-stop { margin: 8px 10px 8px 0; color: var(--red); }
+    .add-stop[aria-disabled="true"], .stop-actions button:disabled { color: var(--muted); background: var(--paper); cursor: default; }
+    .stop-actions button:disabled { opacity: .48; }
+    .course { margin-top: 24px; }
+    .course-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; border-top: 2px solid var(--ink); }
+    .course-head h2 { border: 0; }
+    #save-state { font-size: .78rem; color: var(--muted); }
+    #course-list { list-style: none; padding: 0; margin: 0; }
+    .stop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .stop-number { display: grid; place-items: center; min-width: 24px; height: 24px; border-radius: 50%; color: white; background: var(--red); font-weight: 700; font-size: .8rem; }
+    .stop-name { font-weight: 700; font-size: .94rem; }
+    .stop-actions { display: flex; gap: 3px; margin-left: auto; }
+    .course-hint { margin: 5px 0; font-size: .84rem; color: var(--muted); }
+    .map-section { display: flex; flex-direction: column; }
+    .map-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-top: 2px solid var(--ink); }
+    .map-heading h2 { border: 0; }
+    #overview { padding: 4px 12px; border: 1px solid var(--line); border-radius: 18px; color: var(--ink); background: #fffdf8; font: inherit; font-size: .85rem; cursor: pointer; }
+    #overview:hover, #overview:focus-visible { border-color: var(--red); color: var(--red); }
+    .panel { display: flex; flex: 1; flex-direction: column; min-height: 345px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .map-frame { flex: 1; position: relative; display: grid; min-height: 310px; background-color: #eeeee4; background-image: radial-gradient(#cccec0 1px, transparent 1px); background-size: 14px 14px; }
+    #map { min-width: 0; min-height: 310px; }
+    .placeholder[hidden] { display: none; }
+    .placeholder { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; background: inherit; gap: 18px; padding: 24px; text-align: center; }
+    .pin { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50% 50% 50% 0; background: var(--red); transform: rotate(-45deg); }
+    .pin::after { content: ""; width: 15px; height: 15px; background: var(--paper); border-radius: 50%; }
+    .placeholder strong { font-size: 1.03rem; }
+    .note { margin: 0; padding: 15px 20px; background: #fffdf8; border-top: 1px solid var(--line); }
+    .note small { display: block; color: var(--muted); }
+    .weather { padding: 15px 20px 13px; background: #fffdf8; border-bottom: 1px solid var(--line); }
+    .weather-header, .weather-footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+    .weather h3 { margin: 0; font-size: 1.02rem; }
+    .weather-header span, .weather-footer, .weather dt { color: var(--muted); font-size: .79rem; }
+    .weather dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 13px 0; }
+    .weather dl > div + div { padding-left: 12px; border-left: 1px solid var(--line); }
+    .weather dd { margin: 2px 0 0; font-size: clamp(1.05rem, 2vw, 1.4rem); font-weight: 700; line-height: 1.35; }
+    #weather-sunset { color: var(--red); }
+    .weather-footer a { color: inherit; }
+    #weather-retry { background: transparent; border: 0; padding: 2px 0; color: var(--red); font: inherit; text-decoration: underline; cursor: pointer; }
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; gap: 28px; }
+      header .wrap { min-height: 60px; }
+      nav { gap: 12px; }
+      .panel { min-height: 0; }
+      h1 { margin-bottom: 30px; }
+    }
+    @media (max-width: 380px) { nav { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand"><span class="compass" aria-hidden="true"></span>나만의 서울 여행 지도</div>
+      <nav aria-label="페이지 내 이동"><a href="#course-title">내 코스</a><a href="#map-title">여행 지도</a></nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <h1>서울에서 가보고 싶은 <br><em>장소를 한눈에!</em></h1>
+    <div class="layout">
+      <div>
+      <section aria-labelledby="places-title">
+        <h2 id="places-title">여행 장소 목록<span class="count">3곳</span></h2>
+        <div class="places" role="group" aria-labelledby="places-title">
+          <div class="place-row">
+            <button type="button" class="place" data-id="palace" aria-pressed="false" data-lat="37.579884" data-lng="126.976800" data-tip="광화문을 지나 근정전 앞마당에서 궁궐의 처마선을 바라보세요.">
+            <span class="card"><small class="category">종로구 · 고궁</small><b class="name">경복궁</b><span class="desc">넓은 궁궐 마당과 고즈넉한 전각 사이로 조선의 옛 서울을 만나는 곳.</span></span>
+          </button>
+            <button type="button" class="add-stop" aria-label="경복궁 내 코스에 담기">+ 담기</button>
+          </div>
+          <div class="place-row">
+            <button type="button" class="place" data-id="tower" aria-pressed="false" data-lat="37.551123" data-lng="126.987868" data-tip="해 질 무렵, 남산 위에서 도심에 하나둘 불이 켜지는 모습을 감상해 보세요.">
+            <span class="card"><small class="category">용산구 · 전망</small><b class="name">남산서울타워</b><span class="desc">남산 정상에서 서울의 빌딩 숲과 저녁 불빛을 한눈에 담는 곳.</span></span>
+          </button>
+            <button type="button" class="add-stop" aria-label="남산서울타워 내 코스에 담기">+ 담기</button>
+          </div>
+          <div class="place-row">
+            <button type="button" class="place" data-id="forest" aria-pressed="false" data-lat="37.544625" data-lng="127.039844" data-tip="나무 그늘을 따라 걷다가 마음에 드는 벤치에서 잠깐 쉬어 보세요.">
+            <span class="card"><small class="category">성동구 · 공원</small><b class="name">서울숲</b><span class="desc">성수동의 나무 그늘과 넓은 잔디밭에서 느긋하게 산책하는 공원.</span></span>
+          </button>
+            <button type="button" class="add-stop" aria-label="서울숲 내 코스에 담기">+ 담기</button>
+          </div>
+        </div>
+      </section>
+      <section class="course" aria-labelledby="course-title">
+        <div class="course-head">
+          <h2 id="course-title">내 코스<span id="stop-count" class="count">0곳</span></h2>
+          <span id="save-state" role="status"></span>
+        </div>
+        <ol id="course-list" aria-label="방문 순서"></ol>
+        <p class="course-hint" id="course-hint">장소 옆 ‘+ 담기’를 눌러 방문 순서를 정해 보세요.</p>
+        <template id="stop-template">
+          <li class="stop">
+            <span class="stop-number"></span>
+            <span class="stop-name" tabindex="-1"></span>
+            <span class="stop-actions">
+              <button type="button" data-action="up">↑</button>
+              <button type="button" data-action="down">↓</button>
+              <button type="button" data-action="remove">빼기</button>
+            </span>
+          </li>
+        </template>
+      </section>
+      </div>
+      <section class="map-section" aria-labelledby="map-title">
+        <div class="map-heading">
+          <h2 id="map-title">여행 지도</h2>
+          <button type="button" id="overview">전체 보기</button>
+        </div>
+        <div class="panel">
+          <section class="weather" aria-labelledby="weather-title">
+            <div class="weather-header">
+              <h3 id="weather-title">서울 날씨</h3><span>한국시간</span>
+            </div>
+            <dl>
+              <div><dt>현재 날씨</dt><dd id="weather-current">—</dd></div>
+              <div><dt>12~18시 최고 강수확률</dt><dd id="weather-rain">—</dd></div>
+              <div><dt>오늘 일몰</dt><dd id="weather-sunset">—</dd></div>
+            </dl>
+            <div class="weather-footer">
+              <span role="status" id="weather-status">예보를 불러오는 중입니다.</span>
+              <button type="button" id="weather-retry" hidden>다시 시도</button>
+              <span>자료 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></span>
+            </div>
+          </section>
+          <div class="map-frame">
+            <div id="map" aria-label="서울 여행 장소 지도" role="region"></div>
+            <div class="placeholder" id="map-status" role="status">
+              <span class="pin" aria-hidden="true"></span>
+              <strong id="map-message">지도를 보려면 API 키를 설정하고 JavaScript를 켜주세요.</strong>
+            </div>
+          </div>
+          <p class="note" aria-live="polite" aria-atomic="true">
+            <small id="note-title">전체 보기 · 3곳</small>
+            <span id="note-text">경복궁 · 남산서울타워 · 서울숲</span>
+          </p>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    // 실제 API 키는 이 줄의 따옴표 안에 입력하세요.
+    const API_KEY = "AIzaSyDwAnNsiivQMvY61x2RYUJ008HHkXuNbco";
+    const SEOUL = { lat: 37.5665, lng: 126.9780 };
+
+    const places = [...document.querySelectorAll(".place")].map(button => ({
+      button,
+      id: button.dataset.id,
+      addButton: button.closest(".place-row").querySelector(".add-stop"),
+      name: button.querySelector(".name").textContent,
+      description: button.querySelector(".desc").textContent,
+      tip: button.dataset.tip,
+      position: { lat: Number(button.dataset.lat), lng: Number(button.dataset.lng) }
+    }));
+
+    const title = document.getElementById("note-title");
+    const detail = document.getElementById("note-text");
+    const statusBox = document.getElementById("map-status");
+    let map, info, bounds;
+    let selected = null;
+    let authFailed = false;
+    let courseLine;
+    let course = [];
+    const storageKey = "seoul-travel-map.course.v1";
+    const placeById = new Map(places.map(place => [place.id, place]));
+    const courseList = document.getElementById("course-list");
+    const saveState = document.getElementById("save-state");
+    const stopTemplate = document.getElementById("stop-template");
+
+    const weatherLocations = [{ name: "서울", position: SEOUL }, ...places];
+    const koreaDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+    const weatherCodes = new Map([
+      [0, "맑음"], [1, "대체로 맑음"], [2, "구름 조금"], [3, "흐림"],
+      [45, "안개"], [48, "안개"], [51, "약한 이슬비"], [53, "이슬비"], [55, "강한 이슬비"],
+      [56, "어는 이슬비"], [57, "어는 이슬비"], [61, "약한 비"], [63, "비"], [65, "강한 비"],
+      [66, "어는 비"], [67, "어는 비"], [71, "약한 눈"], [73, "눈"], [75, "강한 눈"],
+      [77, "싸락눈"], [80, "약한 소나기"], [81, "소나기"], [82, "강한 소나기"],
+      [85, "눈 소나기"], [86, "강한 눈 소나기"], [95, "뇌우"], [96, "우박 동반 뇌우"], [99, "우박 동반 뇌우"]
+    ]);
+    const weatherRetry = document.getElementById("weather-retry");
+    let forecasts = [];
+    let weatherState = "idle";
+    let lastWeatherAttempt = 0;
+    let lastWeatherDay = "";
+
+    function renderWeather() {
+      const place = selected || weatherLocations[0];
+      const data = forecasts[weatherLocations.indexOf(place)];
+      const day = koreaDate.format(new Date());
+      const current = data?.current?.time?.startsWith(day + "T") ? data.current : null;
+      const temperature = Number.isFinite(current?.temperature_2m) ? Math.round(current.temperature_2m) + "°C" : "";
+      const rain = [];
+      for (const [index, time] of (data?.hourly?.time || []).entries()) {
+        // 시간별 확률은 직전 한 시간에 해당하므로 13~18시 값이 12~18시를 덮습니다.
+        if (time >= day + "T13:00" && time <= day + "T18:00") {
+          const value = data.hourly.precipitation_probability?.[index];
+          if (Number.isFinite(value)) rain.push(value);
+        }
+      }
+      const dayIndex = data?.daily?.time?.indexOf(day) ?? -1;
+      const sunset = data?.daily?.sunset?.[dayIndex];
+      document.getElementById("weather-title").textContent = place.name + " 날씨";
+      document.getElementById("weather-current").textContent = [temperature, weatherCodes.get(current?.weather_code)].filter(Boolean).join(" · ") || "—";
+      document.getElementById("weather-rain").textContent = rain.length === 6 ? Math.max(...rain) + "%" : "—";
+      document.getElementById("weather-sunset").textContent = sunset?.startsWith(day + "T") ? sunset.slice(11, 16) : "—";
+      const timestamp = current ? current.time.replace("T", " ") + " 기준" : day + " 예보";
+      let status = timestamp;
+      if (weatherState === "loading") status = "예보를 불러오는 중입니다.";
+      if (weatherState === "error") status = current ? timestamp + " · 갱신 실패" : "날씨를 불러오지 못했습니다.";
+      if (weatherState === "ready" && !current && dayIndex < 0) status = "오늘 예보 자료가 없습니다.";
+      document.getElementById("weather-status").textContent = status;
+      weatherRetry.hidden = weatherState !== "error" && !(weatherState === "ready" && !current && dayIndex < 0);
+    }
+
+    async function refreshWeather(force = false) {
+      const now = Date.now();
+      const day = koreaDate.format(now);
+      if (weatherState === "loading") return;
+      if (!force && day === lastWeatherDay && now - lastWeatherAttempt < 15 * 60_000) return;
+      weatherState = "loading";
+      lastWeatherAttempt = now;
+      lastWeatherDay = day;
+      renderWeather();
+      const params = new URLSearchParams({
+        latitude: weatherLocations.map(place => place.position.lat).join(","),
+        longitude: weatherLocations.map(place => place.position.lng).join(","),
+        current: "temperature_2m,weather_code", hourly: "precipitation_probability",
+        daily: "sunset", timezone: "Asia/Seoul", forecast_days: "1"
+      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
+      try {
+        const response = await fetch("https://api.open-meteo.com/v1/forecast?" + params, { signal: controller.signal });
+        if (!response.ok) throw new Error("예보 요청 실패");
+        const result = await response.json();
+        if (!Array.isArray(result) || result.length !== weatherLocations.length) throw new Error("예보 응답 형식 오류");
+        forecasts = result;
+        weatherState = "ready";
+      } catch {
+        weatherState = "error";
+      } finally {
+        clearTimeout(timeout);
+        renderWeather();
+      }
+    }
+
+    weatherRetry.addEventListener("click", () => refreshWeather(true));
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshWeather();
+    });
+    setInterval(() => { if (!document.hidden) refreshWeather(); }, 60_000);
+
+    function renderMapCourse() {
+      if (!courseLine || authFailed) return;
+      courseLine.setPath(course.length >= 2 ? course.map(place => place.position) : []);
+      for (const place of places) {
+        const number = course.indexOf(place) + 1;
+        place.pin.glyphText = number ? String(number) : "";
+        place.pin.background = number ? "#ac392b" : "#59635f";
+        place.marker.title = number ? number + "번째 방문 · " + place.name : place.name;
+      }
+    }
+
+    function renderCourse() {
+      const rows = course.map((place, index) => {
+        const row = stopTemplate.content.firstElementChild.cloneNode(true);
+        row.dataset.id = place.id;
+        row.querySelector(".stop-number").textContent = index + 1;
+        row.querySelector(".stop-name").textContent = place.name;
+        const [up, down, remove] = row.querySelectorAll("button");
+        up.disabled = index === 0;
+        down.disabled = index === course.length - 1;
+        up.setAttribute("aria-label", place.name + " 방문 순서 앞당기기");
+        down.setAttribute("aria-label", place.name + " 방문 순서 늦추기");
+        remove.setAttribute("aria-label", place.name + " 코스에서 빼기");
+        return row;
+      });
+      courseList.replaceChildren(...rows);
+      for (const place of places) {
+        const added = course.includes(place);
+        place.addButton.textContent = added ? "담김 ✓" : "+ 담기";
+        place.addButton.setAttribute("aria-disabled", String(added));
+        place.addButton.setAttribute("aria-label", place.name + (added ? " 코스에 담김" : " 내 코스에 담기"));
+      }
+      document.getElementById("stop-count").textContent = course.length + "곳";
+      document.getElementById("course-hint").textContent = course.length
+        ? "번호는 방문 순서입니다. 두 곳부터 지도에 순서를 잇는 직선이 표시됩니다."
+        : "장소 옆 ‘+ 담기’를 눌러 방문 순서를 정해 보세요.";
+      renderMapCourse();
+    }
+
+    function restoreCourse() {
+      let saved;
+      try {
+        saved = localStorage.getItem(storageKey);
+        const ids = JSON.parse(saved || "[]");
+        if (!Array.isArray(ids)) throw new TypeError();
+        course = [...new Set(ids)].map(id => placeById.get(id)).filter(Boolean);
+        saveState.textContent = course.length ? "저장된 코스 불러옴" : "이 브라우저에 자동 저장";
+      } catch {
+        saveState.textContent = saved
+          ? "저장한 코스를 읽을 수 없어요."
+          : "저장소 접근 불가 · 현재 창에서만 이용";
+      }
+      renderCourse();
+    }
+
+    function saveCourse() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(course.map(place => place.id)));
+        saveState.textContent = "이 브라우저에 저장됨";
+      } catch {
+        saveState.textContent = "저장 실패 · 현재 창에서만 유지";
+      }
+      renderCourse();
+    }
+
+    for (const place of places) {
+      place.addButton.addEventListener("click", () => {
+        if (course.includes(place)) return;
+        course.push(place);
+        saveCourse();
+      });
+    }
+
+    courseList.addEventListener("click", event => {
+      const button = event.target.closest("button[data-action]");
+      if (!button || button.disabled) return;
+      const place = placeById.get(button.closest("li").dataset.id);
+      const index = course.indexOf(place);
+      if (index < 0) return;
+      const action = button.dataset.action;
+      let nextIndex = index;
+      if (action === "remove") {
+        course.splice(index, 1);
+        nextIndex = Math.min(index, course.length - 1);
+      } else {
+        nextIndex = index + (action === "up" ? -1 : 1);
+        if (nextIndex < 0 || nextIndex >= course.length) return;
+        [course[index], course[nextIndex]] = [course[nextIndex], course[index]];
+      }
+      saveCourse();
+      const target = courseList.children[nextIndex]?.querySelector(".stop-name") || place.addButton;
+      target.focus({ preventScroll: true });
+    });
+
+    window.addEventListener("storage", event => {
+      if (event.key === storageKey || event.key === null) restoreCourse();
+    });
+
+    function showStatus(message) {
+      document.getElementById("map-message").textContent = message;
+      statusBox.hidden = false;
+    }
+
+    function selectPlace(place) {
+      selected = place;
+      renderWeather();
+      for (const item of places) {
+        item.button.setAttribute("aria-pressed", String(item === place));
+      }
+      title.textContent = "선택한 장소 · " + place.name;
+      detail.textContent = place.tip;
+      if (!place.marker || authFailed) return;
+
+      map.setZoom(15);
+      map.panTo(place.position);
+      info.setHeaderContent(document.createTextNode(place.name));
+      info.setContent(document.createTextNode(place.description));
+      info.open({ map, anchor: place.marker, shouldFocus: false });
+    }
+
+    function showAll() {
+      selected = null;
+      renderWeather();
+      for (const place of places) place.button.setAttribute("aria-pressed", "false");
+      title.textContent = "전체 보기 · " + places.length + "곳";
+      detail.textContent = places.map(place => place.name).join(" · ");
+      if (bounds && !authFailed) {
+        info.close();
+        map.fitBounds(bounds, 40);
+      }
+    }
+
+    for (const place of places) {
+      place.button.addEventListener("click", () => selectPlace(place));
+    }
+    document.getElementById("overview").addEventListener("click", showAll);
+
+    window.gm_authFailure = () => {
+      authFailed = true;
+      showStatus("지도 인증에 실패했습니다. 키, 허용 웹사이트, 결제 설정을 확인해 주세요.");
+    };
+
+    window.initMap = () => {
+      if (authFailed) return;
+      try {
+        map = new google.maps.Map(document.getElementById("map"), {
+          center: SEOUL,
+          zoom: 12,
+          mapId: "DEMO_MAP_ID",
+          streetViewControl: false,
+          mapTypeControl: false
+        });
+        info = new google.maps.InfoWindow({ maxWidth: 240 });
+        bounds = new google.maps.LatLngBounds();
+
+        for (const place of places) {
+          place.marker = new google.maps.marker.AdvancedMarkerElement({
+            map, position: place.position, title: place.name, gmpClickable: true
+          });
+          place.pin = new google.maps.marker.PinElement({ glyphColor: "#fff", borderColor: "#fff" });
+          place.marker.append(place.pin);
+          place.marker.addEventListener("gmp-click", () => selectPlace(place));
+          bounds.extend(place.position);
+          // 서울 중심을 유지하면서 세 마커가 모두 들어오도록 반대편 여백도 확보합니다.
+          bounds.extend({
+            lat: 2 * SEOUL.lat - place.position.lat,
+            lng: 2 * SEOUL.lng - place.position.lng
+          });
+        }
+        courseLine = new google.maps.Polyline({
+          map, strokeColor: "#ac392b", strokeOpacity: 0.85, strokeWeight: 3, clickable: false
+        });
+        renderMapCourse();
+        statusBox.hidden = true;
+        if (selected) selectPlace(selected);
+        else showAll();
+      } catch (error) {
+        console.error("지도 초기화 오류", error);
+        showStatus("지도를 준비하지 못했습니다. 설정을 확인하고 새로고침해 주세요.");
+      }
+    };
+
+    function loadGoogleMaps() {
+      const key = API_KEY.trim();
+      if (!key || key.startsWith("YOUR_")) {
+        showStatus("index.html에 Google Maps API 키를 입력하면 지도가 표시됩니다.");
+        return;
+      }
+      showStatus("Google 지도를 불러오는 중입니다.");
+      const params = new URLSearchParams({
+        key, loading: "async", callback: "initMap", libraries: "marker",
+        v: "weekly", language: "ko", region: "KR"
+      });
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://maps.googleapis.com/maps/api/js?" + params;
+      script.onerror = () => showStatus("지도에 연결할 수 없습니다. 인터넷 연결을 확인하고 새로고침해 주세요.");
+      document.head.append(script);
+    }
+
+    restoreCourse();
+    refreshWeather();
+    loadGoogleMaps();
+  </script>
+</body>
+</html>
